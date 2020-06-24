@@ -87,11 +87,38 @@ open_pdf(
         description = py::str(filename);
     }
 
-    auto input_source = PointerHolder<InputSource>(new PythonInputSource(
-        stream, description, closing_stream
-    ));
+    bool do_mmap = true;
+    try {
+        // Try mmap
+        py::int_ fileno = stream.attr("fileno")();
+        auto mmap_module = py::module::import("mmap");
+        auto mmap = mmap_module.attr("mmap");
+        auto prot_read = mmap_module.attr("PROT_READ");
+        auto flags_shared = mmap_module.attr("MAP_SHARED");
+        py::object mm = mmap(fileno, 0, flags_shared, prot_read);
+        Py_buffer buffer;
+        int result = PyObject_GetBuffer(mm.ptr(), &buffer, PyBUF_FULL_RO | PyBUF_CONTIG_RO);
+        if (result != 0) {
+            py::print("didn't get buffer");
+            do_mmap = false;
+        } else {
+            py::print("we mmapping");
+            q->processMemoryFile(
+                description.c_str(),
+                static_cast<const char*>(buffer.buf),
+                buffer.len,
+                password.c_str()
+            );
+        }
+    } catch (const py::error_already_set &e) {
+        do_mmap = false;
+    }
 
-    {
+    if (!do_mmap) {
+        throw py::value_error("shit");
+        auto input_source = PointerHolder<InputSource>(new PythonInputSource(
+            stream, description, closing_stream
+        ));
         py::gil_scoped_release release;
         q->processInputSource(input_source, password.c_str());
     }
