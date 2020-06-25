@@ -41,9 +41,13 @@ public:
         int fd = fileno;
         auto mmap_module = py::module::import("mmap");
         auto mmap_fn = mmap_module.attr("mmap");
-        auto prot_read = mmap_module.attr("PROT_READ");
-        auto flags_shared = mmap_module.attr("MAP_SHARED");
-        this->mmap = mmap_fn(fd, 0, flags_shared, prot_read);
+        #ifdef _WIN32
+            this->mmap = mmap_fn(fd, 0);
+        #else
+            auto prot_read = mmap_module.attr("PROT_READ");
+            auto flags_shared = mmap_module.attr("MAP_SHARED");
+            this->mmap = mmap_fn(fd, 0, flags_shared, prot_read);
+        #endif
         py::buffer view(this->mmap);
         this->buffer_info = std::make_unique<py::buffer_info>(view.request(false));
     }
