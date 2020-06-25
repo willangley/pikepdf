@@ -29,6 +29,7 @@
 
 #include "qpdf_pagelist.h"
 #include "qpdf_inputsource.h"
+#include "mmap_inputsource.h"
 #include "pipeline.h"
 #include "utils.h"
 #include "gsl.h"
@@ -87,38 +88,32 @@ open_pdf(
         description = py::str(filename);
     }
 
-    bool do_mmap = true;
+    bool use_stream = false;
     try {
-        // Try mmap
-        py::int_ fileno = stream.attr("fileno")();
-        auto mmap_module = py::module::import("mmap");
-        auto mmap = mmap_module.attr("mmap");
-        auto prot_read = mmap_module.attr("PROT_READ");
-        auto flags_shared = mmap_module.attr("MAP_SHARED");
-        py::object mm = mmap(fileno, 0, flags_shared, prot_read);
-        Py_buffer buffer;
-        int result = PyObject_GetBuffer(mm.ptr(), &buffer, PyBUF_FULL_RO | PyBUF_CONTIG_RO);
-        if (result != 0) {
-            py::print("didn't get buffer");
-            do_mmap = false;
-        } else {
-            py::print("we mmapping");
-            q->processMemoryFile(
-                description.c_str(),
-                static_cast<const char*>(buffer.buf),
-                buffer.len,
-                password.c_str()
-            );
-        }
+        auto mmap_input_source = std::make_unique<MmapInputSource>(
+            stream, description, closing_stream
+        );
+        auto input_source = PointerHolder<InputSource>(mmap_input_source.release());
+        //py::gil_scoped_release release;
+        py::print("mmaping");
+        q->processInputSource(input_source, password.c_str());
+        py::print("mmaping done");
+        // py::bytes b = stream.attr("read")();
+        // std::string data = std::string(b);
+        // auto cdata = data.c_str();
+        // auto len = data.size();
+        // q->processMemoryFile(description.c_str(), cdata, len, password.c_str());
     } catch (const py::error_already_set &e) {
-        do_mmap = false;
+        py::print("fucked up");
+        stream.attr("seek")(0, 0);
+        use_stream = true;
     }
 
-    if (!do_mmap) {
-        throw py::value_error("shit");
-        auto input_source = PointerHolder<InputSource>(new PythonInputSource(
+    if (use_stream) {
+        auto stream_input_source = std::make_unique<PythonStreamInputSource>(
             stream, description, closing_stream
-        ));
+        );
+        auto input_source = PointerHolder<InputSource>(stream_input_source.release());
         py::gil_scoped_release release;
         q->processInputSource(input_source, password.c_str());
     }
@@ -126,6 +121,7 @@ open_pdf(
     if (inherit_page_attributes) {
         // This could be expensive for a large file, plausibly (not tested),
         // so release the GIL again.
+        py::print("we're about to push attributes");
         py::gil_scoped_release release;
         q->pushInheritedAttributesToPage();
     }
