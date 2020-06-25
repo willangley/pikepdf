@@ -31,6 +31,13 @@
 #include <sys/stat.h>
 
 
+// We could almost subclass BufferInputSource, and we even blind copy much of its
+// code. The current reason to not do this is the performance improvement in
+// findAndSkipNextEOL(), which is 8x faster on some files than QPDF. We cannot
+// partially subclass or keep a BufferInputSource due to the need to manage
+// BufferInputSource::Members::cur_offset and InputSource::last_offset, the
+// former being a private variable. If QPDF accepts our changes to findAndSkipNextEOL
+// this could subclass BufferInputSource.
 class MmapInputSource : public InputSource
 {
 public:
@@ -41,6 +48,9 @@ public:
         int fd = fileno;
         auto mmap_module = py::module::import("mmap");
         auto mmap_fn = mmap_module.attr("mmap");
+
+        // Use Python's mmap API since it is more portable than platform versions,
+        // despite the need for this #ifdef.
         #ifdef _WIN32
             this->mmap = mmap_fn(fd, 0);
         #else
@@ -49,15 +59,22 @@ public:
             this->mmap = mmap_fn(fd, 0, flags_shared, prot_read);
         #endif
         py::buffer view(this->mmap);
+
+        // .request(false) -> request read-only mapping
+        // Use a unique_ptr here so we can control the timing of our buffer_info's
+        // deconstruction.
         this->buffer_info = std::make_unique<py::buffer_info>(view.request(false));
     }
     virtual ~MmapInputSource()
     {
         py::gil_scoped_acquire gil;
+
+        // Must release the buffer before we close the mmap
         this->buffer_info.reset();
         if (!this->mmap.is_none()) {
             this->mmap.attr("close")();
         }
+
         if (this->close_stream) {
             this->stream.attr("close")();
         }
