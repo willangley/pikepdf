@@ -35,7 +35,7 @@ class MmapInputSource : public InputSource
 {
 public:
     MmapInputSource(py::object stream, const std::string& description, bool close_stream) :
-            InputSource(), stream(stream), description(description), close_stream(close_stream), py_buffer{}, offset(0)
+            InputSource(), stream(stream), description(description), close_stream(close_stream), offset(0)
     {
         py::int_ fileno = stream.attr("fileno")();
         int fd = fileno;
@@ -45,25 +45,17 @@ public:
         auto flags_shared = mmap_module.attr("MAP_SHARED");
         this->mmap = mmap_fn(fd, 0, flags_shared, prot_read);
         py::buffer view(this->mmap);
-        int result = PyObject_GetBuffer(this->mmap.ptr(), &this->py_buffer, PyBUF_FULL_RO | PyBUF_CONTIG_RO);
-        if (result != 0)
-            throw py::error_already_set();
+        this->buffer_info = std::make_unique<py::buffer_info>(view.request(false));
     }
     virtual ~MmapInputSource()
     {
         py::gil_scoped_acquire gil;
-        if (this->py_buffer.buf) {
-            PyBuffer_Release(&this->py_buffer);
-            py::print("release buf");
-        }
+        this->buffer_info.reset();
         if (!this->mmap.is_none()) {
             this->mmap.attr("close")();
-            py::print("release mmap");
         }
         if (this->close_stream) {
-            py::gil_scoped_acquire gil;
             this->stream.attr("close")();
-            py::print("release stream");
         }
     }
     MmapInputSource(const MmapInputSource&) = delete;
@@ -89,7 +81,7 @@ public:
                 this->offset = offset;
                 break;
             case SEEK_END:
-                this->offset = py_buffer.len + offset;
+                this->offset = this->buffer_info->size + offset;
                 break;
             case SEEK_CUR:
                 this->offset += offset;
@@ -118,7 +110,7 @@ public:
         {
             throw std::logic_error("INTERNAL ERROR: BufferInputSource offset < 0");
         }
-        qpdf_offset_t end_pos = this->py_buffer.len;
+        qpdf_offset_t end_pos = this->buffer_info->size;
         if (this->offset >= end_pos)
         {
             this->last_offset = end_pos;
@@ -128,7 +120,7 @@ public:
         this->last_offset = this->offset;
         size_t len = std::min(
             QIntC::to_size(end_pos - this->offset), length);
-        memcpy(buffer, static_cast<const char*>(this->py_buffer.buf) + this->offset, len);
+        memcpy(buffer, static_cast<const char*>(this->buffer_info->ptr) + this->offset, len);
         this->offset += QIntC::to_offset(len);
         return len;
     }
@@ -146,7 +138,7 @@ public:
         {
             throw std::logic_error("INTERNAL ERROR: BufferInputSource offset < 0");
         }
-        qpdf_offset_t end_pos = this->py_buffer.len;
+        qpdf_offset_t end_pos = this->buffer_info->size;
         if (this->offset >= end_pos)
         {
             this->last_offset = end_pos;
@@ -154,7 +146,7 @@ public:
             return end_pos;
         }
         qpdf_offset_t result = 0;
-        unsigned char const* buffer = static_cast<unsigned char const*>(this->py_buffer.buf);
+        unsigned char const* buffer = static_cast<unsigned char const*>(this->buffer_info->ptr);
 
         unsigned char const* end = buffer + end_pos;
         unsigned char const* p = buffer + this->offset;
@@ -188,6 +180,6 @@ private:
     std::string description;
     bool close_stream;
     py::object mmap;
-    Py_buffer py_buffer;
+    std::unique_ptr<py::buffer_info> buffer_info;
     qpdf_offset_t offset;
 };
