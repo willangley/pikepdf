@@ -94,17 +94,8 @@ open_pdf(
             stream, description, closing_stream
         );
         auto input_source = PointerHolder<InputSource>(mmap_input_source.release());
-        //py::gil_scoped_release release;
-        py::print("mmaping");
         q->processInputSource(input_source, password.c_str());
-        py::print("mmaping done");
-        // py::bytes b = stream.attr("read")();
-        // std::string data = std::string(b);
-        // auto cdata = data.c_str();
-        // auto len = data.size();
-        // q->processMemoryFile(description.c_str(), cdata, len, password.c_str());
     } catch (const py::error_already_set &e) {
-        py::print("fucked up");
         stream.attr("seek")(0, 0);
         use_stream = true;
     }
@@ -121,7 +112,6 @@ open_pdf(
     if (inherit_page_attributes) {
         // This could be expensive for a large file, plausibly (not tested),
         // so release the GIL again.
-        py::print("we're about to push attributes");
         py::gil_scoped_release release;
         q->pushInheritedAttributesToPage();
     }

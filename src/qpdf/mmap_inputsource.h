@@ -44,9 +44,10 @@ public:
         auto prot_read = mmap_module.attr("PROT_READ");
         auto flags_shared = mmap_module.attr("MAP_SHARED");
         this->mmap = mmap_fn(fd, 0, flags_shared, prot_read);
+        py::buffer view(this->mmap);
         int result = PyObject_GetBuffer(this->mmap.ptr(), &this->py_buffer, PyBUF_FULL_RO | PyBUF_CONTIG_RO);
         if (result != 0)
-            throw py::value_error("Not bufferable?");
+            throw py::error_already_set();
     }
     virtual ~MmapInputSource()
     {
@@ -113,12 +114,23 @@ public:
 
     size_t read(char* buffer, size_t length) override
     {
-
+        if (this->offset < 0)
+        {
+            throw std::logic_error("INTERNAL ERROR: BufferInputSource offset < 0");
+        }
+        qpdf_offset_t end_pos = this->py_buffer.len;
+        if (this->offset >= end_pos)
+        {
+            this->last_offset = end_pos;
+            return 0;
+        }
 
         this->last_offset = this->offset;
-        memcpy(buffer, static_cast<const char *>(this->py_buffer.buf) + this->offset, length);
-        this->offset += length;
-        return length;
+        size_t len = std::min(
+            QIntC::to_size(end_pos - this->offset), length);
+        memcpy(buffer, static_cast<const char*>(this->py_buffer.buf) + this->offset, len);
+        this->offset += QIntC::to_offset(len);
+        return len;
     }
 
     void unreadCh(char ch) override
@@ -142,7 +154,6 @@ public:
             return end_pos;
         }
         qpdf_offset_t result = 0;
-        size_t len = QIntC::to_size(end_pos - this->offset);
         unsigned char const* buffer = static_cast<unsigned char const*>(this->py_buffer.buf);
 
         unsigned char const* end = buffer + end_pos;
@@ -170,31 +181,8 @@ public:
             result = end_pos;
         }
         return result;
-
-
-    //     const char *buf_base = static_cast<const char *>(this->py_buffer.buf);
-    //     const char *buf = buf_base + this->offset;
-    //     const char *buf_end = buf_base + this->py_buffer.len;
-
-    //     while (buf < buf_end) {
-    //         if (*buf == '\r' || *buf == '\n') {
-    //             break;
-    //         }
-    //         ++buf;
-    //     }
-
-    //     while (buf < buf_end) {
-    //         if (! (*buf == '\r' || *buf == '\n')) {
-    //             break;
-    //         }
-    //         ++buf;
-    //     }
-
-    //     this->offset = buf - buf_base;
-    //     return this->offset;
-
-
     }
+
 private:
     py::object stream;
     std::string description;
