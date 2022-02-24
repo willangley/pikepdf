@@ -60,48 +60,37 @@ macwheel310 := pikepdf-$(version)-cp310-cp310-macosx_${underscored_target}_arm64
 $(info $$macwheel39 is ${macwheel39})
 $(info $$macwheel310 is ${macwheel310})
 
-wheelhouse/$(macwheel39): clean
-	rm -f wheelhouse/pikepdf*cp39*.whl
-	rm -rf .venv39
-	/opt/homebrew/bin/python3.9 -m venv .venv39
+define generate_wheel
+	# $(1) is python interpreter
+	# $(2) is python version with no spaces
+	# $(3) is output wheel filename
+	rm -f wheelhouse/pikepdf*cp$(2)*.whl
+	rm -rf .venv$(2)
+	$(1) -m venv .venv$(2)
 	( \
-		source .venv39/bin/activate; \
+		source .venv$(2)/bin/activate; \
 		python -m pip install --upgrade setuptools pip wheel; \
 		python -m pip install .; \
 		python -m pip wheel -w wheelhouse .; \
 	)
-	mv wheelhouse/pikepdf*cp39*.whl wheelhouse/$(macwheel39)
+	mv wheelhouse/pikepdf*cp$(2)*.whl wheelhouse/$(3)
 
 	# rm -rf unpacked/
-	# python -m wheel unpack wheelhouse/$(macwheel39) --dest unpacked
-	# rm -f wheelhouse/$(macwheel39)
+	# python -m wheel unpack wheelhouse/$(3) --dest unpacked
+	# rm -f wheelhouse/$(3)
 	# install_name_tool -change /usr/local/lib/libqpdf.28.dylib \
 	# 	/Users/jb/src/qpdf/libqpdf/build/.libs/libqpdf.28.dylib \
 	# 	unpacked/pikepdf-*/pikepdf/_qpdf.cpython*.so
 	# python -m wheel pack unpacked/pikepdf-*/ --dest-dir wheelhouse
 	# rm -rf unpacked/
+endef	
 
+
+wheelhouse/$(macwheel39): clean
+	$(call generate_wheel,/opt/homebrew/bin/python3.9,39,$(macwheel39))
 
 wheelhouse/$(macwheel310): clean
-	rm -f wheelhouse/pikepdf*cp310*.whl
-	rm -rf .venv310
-	/opt/homebrew/opt/python@3.10/bin/python3.10 -m venv .venv310
-	( \
-		source .venv310/bin/activate; \
-		python -m pip install --upgrade setuptools pip wheel; \
-		python -m pip install .; \
-		python -m pip wheel -w wheelhouse .; \
-	)
-	mv wheelhouse/pikepdf*cp310*.whl wheelhouse/$(macwheel310)
-
-	# rm -rf unpacked/
-	# python -m wheel unpack wheelhouse/$(macwheel310) --dest unpacked
-	# rm -f wheelhouse/$(macwheel310)
-	# install_name_tool -change /usr/local/lib/libqpdf.28.dylib \
-	# 	/Users/jb/src/qpdf/libqpdf/build/.libs/libqpdf.28.dylib \
-	# 	unpacked/pikepdf-*/pikepdf/_qpdf.cpython*.so
-	# python -m wheel pack unpacked/pikepdf-*/ --dest-dir wheelhouse
-	# rm -rf unpacked/
+	$(call generate_wheel,/opt/homebrew/opt/python@3.10/bin/python3.10,310,$(macwheel310))
 
 wheelhouse/delocated/$(macwheel39): wheelhouse/$(macwheel39)
 	delocate-wheel -w wheelhouse/delocated -v wheelhouse/$(macwheel39)
