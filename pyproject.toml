@@ -66,7 +66,7 @@ manylinux-pypy_i686-image = "manylinux2014"
 # pp39: no Pillow pp39 wheels yet - https://pypi.org/project/Pillow/#files
 # pp*-manylinux*_aarch64: no Pillow pypy-aarch64 wheels yet
 # pp*-manylinux*_i686: this will probably never happen
-skip = "*-musllinux_* pp39* pp*-manylinux*_i686 pp*-manylinux*_aarch64"
+skip = "*-musllinux_* pp39* pp*-manylinux*_i686 pp*-manylinux*_aarch64 cp311-*"
 
 [[tool.cibuildwheel.overrides]]
 # musllinux image was based on Alpine 3.12
