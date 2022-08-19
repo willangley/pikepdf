@@ -39,9 +39,10 @@ exclude = '''
 [tool.cibuildwheel]
 test-command = "pytest -nauto {project}/tests"
 test-extras = "test"
+# cp36: ancient
 # cp311: too many missing deps
 # pp39: no Pillow pp39 wheels yet - https://pypi.org/project/Pillow/#files
-build = "cp3{7,8,9,10}-* pp3{7,8}-*"
+skip = ["cp36-*", "cp311-*", "pp39-*", "*musllinux*", "pp*-manylinux*_aarch64"]
 test-skip = "*_arm64 *_universal2:arm64"
 
 [tool.cibuildwheel.environment]
@@ -66,7 +67,6 @@ manylinux-pypy_i686-image = "manylinux2014"
 # Status of exotic images as of 2022-07
 # musllinux: see below
 # pp*-manylinux*_aarch64: no Pillow pypy-aarch64 wheels yet
-skip = "*-musllinux_* pp*-manylinux*_aarch64"
 
 [[tool.cibuildwheel.overrides]]
 # musllinux image was based on Alpine 3.12
@@ -88,7 +88,7 @@ before-all = ["brew update", "brew install qpdf little-cms2"]
 # or PyPy3 doesn't work on Windows 64-bit, one or the other
 # Check https://pypi.org/project/lxml/#files to see if lxml is providing pp-*win
 # PyPy+Win32 seems like a very low priority combination
-skip = "pp3*"
+skip = ["cp36-*", "cp311-*", "pp3*"]
 
 [tool.mypy]
 
