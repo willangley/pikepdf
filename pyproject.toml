@@ -39,7 +39,9 @@ exclude = '''
 [tool.cibuildwheel]
 test-command = "pytest -nauto {project}/tests"
 test-extras = "test"
-skip = "cp36-* cp311-*"
+# cp311: too many missing deps
+# pp39: no Pillow pp39 wheels yet - https://pypi.org/project/Pillow/#files
+build = "cp3{7,8,9,10}-* pp3{7,8}-*"
 test-skip = "*_arm64 *_universal2:arm64"
 
 [tool.cibuildwheel.environment]
@@ -63,15 +65,13 @@ manylinux-pypy_x86_64-image = "manylinux2014"
 manylinux-pypy_i686-image = "manylinux2014"
 # Status of exotic images as of 2022-07
 # musllinux: see below
-# pp39: no Pillow pp39 wheels yet - https://pypi.org/project/Pillow/#files
 # pp*-manylinux*_aarch64: no Pillow pypy-aarch64 wheels yet
-# pp*-manylinux*_i686: this will probably never happen
-skip = "*-musllinux_* pp39* pp*-manylinux*_i686 pp*-manylinux*_aarch64 cp311-*"
+skip = "*-musllinux_* pp*-manylinux*_aarch64"
 
 [[tool.cibuildwheel.overrides]]
 # musllinux image was based on Alpine 3.12
 # We need Alpine 3.16 or newer to get newer required package versions
-# Check https://github.com/pypa/manylinux/blob/main/build.sh#L71 to see if
+# Check https://github.com/pypa/manylinux/blob/main/build.sh#L55 to see if
 # musllinux has been updated.
 # To test this, remove musllinux from the skip list in the table above.
 select = "*-musllinux*"
